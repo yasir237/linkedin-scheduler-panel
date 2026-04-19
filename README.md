@@ -1,4 +1,4 @@
-# 📅 LinkedIn Scheduler
+# 📅 LinkedIn Scheduler - Panel
 
 LinkedIn postlarını planlamak, düzenlemek ve yönetmek için geliştirilmiş **lokal çalışan** bir web uygulaması.
 
@@ -61,7 +61,20 @@ Uygulama, postları `posts.json` dosyasına kaydeder. n8n her sabah bu dosyayı 
 
 ## Ekran Görüntüleri
 
-> Yakında eklenecek
+<img width="1919" height="907" alt="Ekran görüntüsü 2026-04-19 180552" src="https://github.com/user-attachments/assets/af40ff95-67cb-4cba-b415-11424711a1a6" />
+
+---
+
+<img width="1919" height="910" alt="Ekran görüntüsü 2026-04-19 175048" src="https://github.com/user-attachments/assets/6217bd68-ddd0-4d7d-a7a4-cfe267ffb370" />
+
+---
+
+<img width="1919" height="905" alt="Ekran görüntüsü 2026-04-19 175100" src="https://github.com/user-attachments/assets/ac74ff75-e439-464a-a34a-dde01f0004da" />
+
+---
+
+<img width="1919" height="901" alt="Ekran görüntüsü 2026-04-19 175222" src="https://github.com/user-attachments/assets/77b321b8-c32d-4911-96f4-78da468a41a7" />
+
 
 ---
 
