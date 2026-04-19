@@ -1,0 +1,2375 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LinkedIn Post Scheduler</title>
+    <link rel="shortcut icon" href="logo.png" type="image/x-icon" />
+
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: #0f0f13;
+        --surface: #1a1a22;
+        --surface2: #22222e;
+        --surface3: #2a2a38;
+        --border: rgba(255, 255, 255, 0.08);
+        --border2: rgba(255, 255, 255, 0.14);
+        --accent: #0a66c2;
+        --accent2: #378add;
+        --text: #f0f0f5;
+        --text2: #9090a8;
+        --text3: #5a5a70;
+        --success: #3b6d11;
+        --success-bg: #eaf3de;
+        --danger: #a32d2d;
+        --danger-bg: #fcebeb;
+        --amber: #ba7517;
+        --amber-bg: #faeeda;
+        --radius: 10px;
+        --radius-lg: 14px;
+      }
+      body {
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* HEADER */
+      .header {
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        padding: 0 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 58px;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+      }
+      .logo-icon {
+        width: 30px;
+        height: 30px;
+        object-fit: cover;
+      }
+      .header-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .badge-today {
+        background: rgba(10, 102, 194, 0.2);
+        color: var(--accent2);
+        border: 1px solid rgba(55, 138, 221, 0.3);
+        border-radius: 20px;
+        font-size: 12px;
+        padding: 3px 10px;
+        font-weight: 500;
+      }
+      .sync-indicator {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        background: var(--surface2);
+        color: var(--text3);
+        transition: all 0.3s;
+        white-space: nowrap;
+      }
+      .sync-indicator.connected {
+        border-color: rgba(59, 153, 34, 0.4);
+        background: rgba(59, 153, 34, 0.1);
+        color: #63c922;
+      }
+      .sync-indicator.writing {
+        border-color: rgba(55, 138, 221, 0.4);
+        background: rgba(10, 102, 194, 0.1);
+        color: var(--accent2);
+      }
+      .sync-indicator.error {
+        border-color: rgba(226, 75, 74, 0.4);
+        background: rgba(226, 75, 74, 0.1);
+        color: #e24b4a;
+      }
+      .sync-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
+      .sync-indicator.writing .sync-dot {
+        animation: pulse 0.8s infinite;
+      }
+
+      /* LAYOUT */
+      .app {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* SIDEBAR */
+      .sidebar {
+        width: 300px;
+        min-width: 300px;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .sidebar-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .sidebar-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text2);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .post-list {
+        overflow-y: auto;
+        flex: 1;
+        padding: 8px;
+      }
+      .post-item {
+        padding: 10px 12px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        border: 1px solid transparent;
+        margin-bottom: 4px;
+        transition: all 0.15s;
+        position: relative;
+      }
+      .post-item:hover {
+        background: var(--surface2);
+        border-color: var(--border);
+      }
+      .post-item.active {
+        background: rgba(10, 102, 194, 0.15);
+        border-color: rgba(10, 102, 194, 0.4);
+      }
+      .post-item-date {
+        font-size: 11px;
+        color: var(--text3);
+        margin-bottom: 3px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .post-item-text {
+        font-size: 13px;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.4;
+      }
+      .post-item-status {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .status-scheduled {
+        background: var(--accent2);
+      }
+      .status-today {
+        background: #3b9922;
+      }
+      .status-overdue {
+        background: #e24b4a;
+      }
+      .status-draft {
+        background: var(--text3);
+      }
+      .status-published {
+        background: #9b59b6;
+      }
+
+      /* MAIN CONTENT */
+      .main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .main-toolbar {
+        padding: 12px 1.5rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        background: var(--surface);
+      }
+      .toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .toolbar-sep {
+        width: 1px;
+        height: 20px;
+        background: var(--border);
+        margin: 0 4px;
+      }
+
+      .main-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.5rem;
+      }
+
+      /* FORM */
+      .form-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .form-section {
+        margin-bottom: 1.25rem;
+      }
+      .form-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text2);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+      }
+      .form-input,
+      .form-textarea,
+      .form-select {
+        width: 100%;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text);
+        font-size: 14px;
+        padding: 9px 12px;
+        font-family: inherit;
+        transition: border-color 0.15s;
+        outline: none;
+      }
+      .form-input:focus,
+      .form-textarea:focus,
+      .form-select:focus {
+        border-color: var(--accent);
+      }
+      .form-textarea {
+        resize: vertical;
+        min-height: 140px;
+        line-height: 1.6;
+      }
+      .form-select option {
+        background: var(--surface2);
+      }
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+      .form-row-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1rem;
+      }
+
+      /* CHAR COUNT */
+      .char-count {
+        font-size: 11px;
+        color: var(--text3);
+        text-align: right;
+        margin-top: 4px;
+      }
+      .char-count.warn {
+        color: var(--amber);
+      }
+      .char-count.over {
+        color: #e24b4a;
+      }
+
+      /* MEDIA UPLOAD */
+      .media-zone {
+        border: 1.5px dashed var(--border2);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.15s;
+        background: var(--surface2);
+      }
+      .media-zone:hover {
+        border-color: var(--accent);
+        background: rgba(10, 102, 194, 0.05);
+      }
+      .media-zone.drag-over {
+        border-color: var(--accent);
+        background: rgba(10, 102, 194, 0.1);
+      }
+      .media-zone-icon {
+        font-size: 24px;
+        margin-bottom: 6px;
+      }
+      .media-zone-text {
+        font-size: 13px;
+        color: var(--text2);
+      }
+      .media-zone-sub {
+        font-size: 11px;
+        color: var(--text3);
+        margin-top: 3px;
+      }
+      .media-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .media-thumb {
+        position: relative;
+        aspect-ratio: 1;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        background: var(--surface3);
+      }
+      .media-thumb img,
+      .media-thumb video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .media-thumb-remove {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        background: rgba(0, 0, 0, 0.75);
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+      }
+      .media-thumb-type {
+        position: absolute;
+        bottom: 4px;
+        left: 4px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        font-size: 9px;
+        border-radius: 4px;
+        padding: 1px 4px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      /* OFFSET SECTION */
+      .offset-box {
+        background: rgba(10, 102, 194, 0.08);
+        border: 1px solid rgba(10, 102, 194, 0.2);
+        border-radius: var(--radius);
+        padding: 12px 14px;
+      }
+      .offset-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+      .offset-val {
+        background: var(--surface3);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 13px;
+        color: var(--text);
+        width: 70px;
+        text-align: center;
+      }
+      .offset-info {
+        font-size: 12px;
+        color: var(--text2);
+      }
+      .offset-badge {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-weight: 500;
+      }
+      .offset-badge.cascade {
+        background: rgba(55, 138, 221, 0.15);
+        color: var(--accent2);
+        border: 1px solid rgba(55, 138, 221, 0.3);
+      }
+      .offset-badge.single {
+        background: rgba(186, 117, 23, 0.15);
+        color: #ef9f27;
+        border: 1px solid rgba(186, 117, 23, 0.3);
+      }
+
+      /* BUTTONS */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid var(--border);
+        background: var(--surface2);
+        color: var(--text);
+        cursor: pointer;
+        transition: all 0.15s;
+        white-space: nowrap;
+        font-family: inherit;
+      }
+      .btn:hover {
+        background: var(--surface3);
+        border-color: var(--border2);
+      }
+      .btn:active {
+        transform: scale(0.98);
+      }
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #0a7fd4;
+        border-color: #0a7fd4;
+      }
+      .btn-danger {
+        color: #e24b4a;
+        border-color: rgba(226, 75, 74, 0.3);
+      }
+      .btn-danger:hover {
+        background: rgba(226, 75, 74, 0.1);
+      }
+      .btn-sm {
+        padding: 5px 10px;
+        font-size: 12px;
+      }
+      .btn-icon {
+        padding: 6px 8px;
+      }
+
+      /* EMPTY STATE */
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text3);
+        gap: 12px;
+        text-align: center;
+        padding: 3rem;
+      }
+      .empty-icon {
+        font-size: 40px;
+      }
+      .empty-title {
+        font-size: 16px;
+        color: var(--text2);
+        font-weight: 500;
+      }
+      .empty-sub {
+        font-size: 13px;
+      }
+
+      /* MODAL */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 500;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+      .modal-overlay.open {
+        display: flex;
+      }
+      .modal {
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+        width: 100%;
+        max-width: 520px;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .modal-title {
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      /* JSON EXPORT */
+      .json-pre {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1rem;
+        font-family: "Courier New", monospace;
+        font-size: 11px;
+        color: #7fdbca;
+        max-height: 300px;
+        overflow-y: auto;
+        white-space: pre;
+        margin-top: 8px;
+      }
+
+      /* CALENDAR VIEW */
+      .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+      }
+      .cal-day-header {
+        font-size: 11px;
+        color: var(--text3);
+        text-align: center;
+        padding: 6px 0;
+        font-weight: 600;
+      }
+      .cal-day {
+        min-height: 70px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px;
+        position: relative;
+      }
+      .cal-day.other-month {
+        opacity: 0.35;
+      }
+      .cal-day.today {
+        border-color: var(--accent);
+      }
+      .cal-day-num {
+        font-size: 11px;
+        color: var(--text2);
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+      .cal-dot {
+        font-size: 10px;
+        background: rgba(10, 102, 194, 0.25);
+        color: var(--accent2);
+        border-radius: 4px;
+        padding: 2px 4px;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: grab;
+        transition: opacity 0.15s;
+        user-select: none;
+      }
+      .cal-dot:active {
+        cursor: grabbing;
+      }
+      .cal-day.cal-drop-target {
+        border-color: var(--accent);
+        background: rgba(10, 102, 194, 0.12);
+        outline: 2px dashed rgba(55, 138, 221, 0.5);
+        outline-offset: -2px;
+      }
+      .cal-dot.today-dot {
+        background: rgba(59, 153, 34, 0.25);
+        color: #63c922;
+      }
+      .cal-dot.overdue-dot {
+        background: rgba(226, 75, 74, 0.2);
+        color: #e24b4a;
+      }
+      .cal-nav {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 1rem;
+      }
+      .cal-nav-title {
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      /* FILTER ROW */
+      .filter-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 1.5rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+        flex-wrap: wrap;
+      }
+      .filter-chip {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text2);
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: inherit;
+        font-weight: 500;
+        text-align: center;
+        justify-content: center;
+      }
+      .filter-chip:hover {
+        border-color: var(--border2);
+        color: var(--text);
+      }
+      .filter-chip.active {
+        background: rgba(10, 102, 194, 0.2);
+        border-color: rgba(10, 102, 194, 0.4);
+        color: var(--accent2);
+      }
+
+      /* DRAG */
+      .post-item[draggable="true"] {
+        cursor: grab;
+      }
+      .post-item.drag-target {
+        border-color: var(--accent);
+        background: rgba(10, 102, 194, 0.12);
+      }
+
+      /* TOAST */
+      .toast-container {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .toast {
+        background: var(--surface2);
+        border: 1px solid var(--border2);
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 13px;
+        color: var(--text);
+        animation: slideIn 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 300px;
+      }
+      .toast.success {
+        border-color: rgba(59, 109, 17, 0.5);
+      }
+      .toast.error {
+        border-color: rgba(226, 75, 74, 0.5);
+      }
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(20px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* SCROLLBAR */
+      ::-webkit-scrollbar {
+        width: 4px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--surface3);
+        border-radius: 4px;
+      }
+
+      /* VIEW TOGGLE */
+      .view-tabs {
+        display: flex;
+        gap: 2px;
+        background: var(--surface2);
+        border-radius: 8px;
+        padding: 2px;
+      }
+      .view-tab {
+        padding: 5px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        color: var(--text2);
+        font-family: inherit;
+        transition: all 0.15s;
+      }
+      .view-tab.active {
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      /* STATS ROW */
+      .stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-bottom: 1.25rem;
+      }
+      .stat-card {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px;
+        text-align: center;
+      }
+      .stat-num {
+        font-size: 22px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .stat-label {
+        font-size: 11px;
+        color: var(--text3);
+        margin-top: 2px;
+      }
+
+      /* HIDDEN */
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="logo">
+        <img src="logo.png" class="logo-icon" />
+        LinkedIn Scheduler
+      </div>
+      <div class="header-actions">
+        <span class="badge-today" id="todayBadge">0 post bugün</span>
+        <div
+          class="sync-indicator"
+          id="syncIndicator"
+          title="Klasör seçerek otomatik senkronizasyonu etkinleştirin"
+        >
+          <span class="sync-dot"></span>
+          <span id="syncLabel">Klasör seçilmedi</span>
+        </div>
+        <button class="btn btn-sm" id="folderBtn" onclick="pickFolder()">
+          📁 Klasör Bağla
+        </button>
+        <button class="btn btn-sm" onclick="openExport()">⬇ JSON Export</button>
+        <button class="btn btn-sm" onclick="openImport()">⬆ Import</button>
+        <button class="btn btn-sm btn-primary" onclick="openNewPost()">
+          + Yeni Post
+        </button>
+      </div>
+    </div>
+
+    <div class="app">
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title"
+            >Postlar (<span id="postCount">0</span>)</span
+          >
+          <button
+            class="btn btn-sm btn-icon"
+            onclick="openNewPost()"
+            title="Yeni post"
+          >
+            +
+          </button>
+        </div>
+        <div
+          style="
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+          "
+        >
+          <!-- Durum -->
+          <div
+            style="
+              font-size: 10px;
+              font-weight: 600;
+              color: var(--text3);
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            "
+          >
+            Durum
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px">
+            <button
+              class="filter-chip active"
+              style="text-align: center"
+              onclick="setFilter('all', this)"
+            >
+              Tümü
+            </button>
+            <button
+              class="filter-chip"
+              style="text-align: center"
+              onclick="setFilter('scheduled', this)"
+            >
+              Planlanmış
+            </button>
+            <button
+              class="filter-chip"
+              style="text-align: center"
+              onclick="setFilter('draft', this)"
+            >
+              Taslak
+            </button>
+            <button
+              class="filter-chip"
+              style="text-align: center"
+              onclick="setFilter('published', this)"
+            >
+              Paylaşıldı
+            </button>
+          </div>
+
+          <!-- Tarih -->
+          <div
+            style="
+              font-size: 10px;
+              font-weight: 600;
+              color: var(--text3);
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-top: 4px;
+            "
+          >
+            Tarih
+          </div>
+          <div
+            style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px"
+          >
+            <button
+              class="filter-chip"
+              style="text-align: center"
+              onclick="setDateFilter('today', this)"
+            >
+              Bugün
+            </button>
+            <button
+              class="filter-chip"
+              style="text-align: center"
+              onclick="setDateFilter('tomorrow', this)"
+            >
+              Yarın
+            </button>
+            <button
+              class="filter-chip"
+              style="text-align: center"
+              id="rangeChip"
+              onclick="setDateFilter('range', this)"
+            >
+              Aralık
+            </button>
+          </div>
+
+          <!-- Tarih aralığı -->
+          <div
+            id="dateRangeBox"
+            style="display: none; flex-direction: column; gap: 4px"
+          >
+            <div style="font-size: 11px; color: var(--text3)">Başlangıç</div>
+            <input
+              type="date"
+              class="form-input"
+              id="filterDateFrom"
+              style="font-size: 12px; padding: 6px 10px"
+              onchange="applyDateRange()"
+            />
+            <div style="font-size: 11px; color: var(--text3)">Bitiş</div>
+            <input
+              type="date"
+              class="form-input"
+              id="filterDateTo"
+              style="font-size: 12px; padding: 6px 10px"
+              onchange="applyDateRange()"
+            />
+          </div>
+        </div>
+        <div class="post-list" id="postList"></div>
+      </div>
+
+      <!-- MAIN -->
+      <div class="main">
+        <div class="main-toolbar">
+          <div class="view-tabs">
+            <button class="view-tab active" onclick="setView('form', this)">
+              Düzenle
+            </button>
+            <button class="view-tab" onclick="setView('calendar', this)">
+              Takvim
+            </button>
+            <button class="view-tab" onclick="setView('stats', this)">
+              İstatistik
+            </button>
+          </div>
+          <div class="toolbar-sep"></div>
+          <div id="toolbarActions" class="toolbar-group hidden">
+            <button class="btn btn-sm" onclick="duplicatePost()">
+              Kopyala
+            </button>
+            <button
+              class="btn btn-sm"
+              onclick="markPublished()"
+              style="color: #9b59b6; border-color: rgba(155, 89, 182, 0.3)"
+            >
+              ✓ Paylaşıldı
+            </button>
+            <button class="btn btn-sm" onclick="openShiftModal()">
+              📅 Kaydır
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="deletePost()">
+              Sil
+            </button>
+          </div>
+          <div
+            style="margin-left: auto; font-size: 12px; color: var(--text3)"
+            id="selectionInfo"
+          ></div>
+        </div>
+
+        <div class="main-content">
+          <!-- FORM VIEW -->
+          <div id="viewForm">
+            <div id="emptyState" class="empty-state">
+              <div class="empty-icon">📝</div>
+              <div class="empty-title">Post seçin veya yeni oluşturun</div>
+              <div class="empty-sub">
+                Soldan bir post seçin ya da "Yeni Post" butonuna tıklayın
+              </div>
+              <button
+                class="btn btn-primary"
+                onclick="openNewPost()"
+                style="margin-top: 8px"
+              >
+                + Yeni Post Oluştur
+              </button>
+            </div>
+
+            <div id="postEditor" class="hidden">
+              <div class="form-card">
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 1.25rem;
+                  "
+                >
+                  <div
+                    style="font-size: 16px; font-weight: 600"
+                    id="editorTitle"
+                  >
+                    Yeni Post
+                  </div>
+                  <div style="display: flex; gap: 6px">
+                    <button class="btn btn-sm" onclick="savePost()">
+                      Taslak Kaydet
+                    </button>
+                    <button
+                      class="btn btn-sm btn-primary"
+                      onclick="savePost(true)"
+                    >
+                      ✓ Planla
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <label class="form-label">İçerik</label>
+                  <textarea
+                    class="form-textarea"
+                    id="fContent"
+                    placeholder="LinkedIn postunuzu buraya yazın..."
+                    oninput="updateCharCount()"
+                    maxlength="3000"
+                  ></textarea>
+                  <div class="char-count" id="charCount">0 / 3000</div>
+                </div>
+
+                <div class="form-section">
+                  <label class="form-label">Medya (Fotoğraf / Video)</label>
+                  <div
+                    class="media-zone"
+                    id="dropZone"
+                    ondragover="handleDragOver(event)"
+                    ondragleave="handleDragLeave(event)"
+                    ondrop="handleDrop(event)"
+                    onclick="document.getElementById('mediaInput').click()"
+                  >
+                    <div class="media-zone-icon">🖼</div>
+                    <div class="media-zone-text">
+                      Dosyaları buraya sürükleyin veya tıklayın
+                    </div>
+                    <div class="media-zone-sub">
+                      JPG, PNG, GIF, MP4, MOV — birden fazla seçebilirsiniz
+                    </div>
+                  </div>
+                  <input
+                    type="file"
+                    id="mediaInput"
+                    multiple
+                    accept="image/*,video/*"
+                    style="display: none"
+                    onchange="handleFiles(this.files)"
+                  />
+                  <div class="media-grid" id="mediaGrid"></div>
+                </div>
+
+                <div class="form-section">
+                  <div class="form-row">
+                    <div>
+                      <label class="form-label">Tarih</label>
+                      <input type="date" class="form-input" id="fDate" />
+                    </div>
+                    <div>
+                      <label class="form-label">Saat</label>
+                      <input
+                        type="time"
+                        class="form-input"
+                        id="fTime"
+                        value="09:00"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <label class="form-label">Etiketler (virgülle ayırın)</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    id="fTags"
+                    placeholder="pazarlama, kariyer, teknoloji"
+                  />
+                </div>
+
+                <div class="form-section">
+                  <label class="form-label">Notlar (sadece sen görürsün)</label>
+                  <input
+                    type="text"
+                    class="form-input"
+                    id="fNotes"
+                    placeholder="Bu post için notlarınız..."
+                  />
+                </div>
+
+                <input type="hidden" id="fId" />
+              </div>
+            </div>
+          </div>
+
+          <!-- CALENDAR VIEW -->
+          <div id="viewCalendar" class="hidden">
+            <div style="max-width: 900px; margin: 0 auto">
+              <div class="cal-nav">
+                <button class="btn btn-icon" onclick="prevMonth()">◀</button>
+                <div class="cal-nav-title" id="calTitle"></div>
+                <button class="btn btn-icon" onclick="nextMonth()">▶</button>
+                <button
+                  class="btn btn-sm"
+                  style="margin-left: auto"
+                  onclick="goToday()"
+                >
+                  Bugün
+                </button>
+              </div>
+              <div class="calendar-grid" id="calGrid"></div>
+            </div>
+          </div>
+
+          <!-- STATS VIEW -->
+          <div id="viewStats" class="hidden">
+            <div style="max-width: 700px; margin: 0 auto">
+              <div class="stats-row" id="statsRow"></div>
+              <div
+                style="
+                  font-size: 14px;
+                  font-weight: 600;
+                  margin-bottom: 12px;
+                  color: var(--text2);
+                "
+              >
+                Etiket dağılımı
+              </div>
+              <div
+                id="tagStats"
+                style="
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 6px;
+                  margin-bottom: 1.5rem;
+                "
+              ></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHIFT MODAL -->
+    <div class="modal-overlay" id="shiftModal">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">📅 Post Kaydır</div>
+          <button
+            class="btn btn-icon btn-sm"
+            onclick="closeModal('shiftModal')"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div class="form-section">
+          <label class="form-label">Kaydırma Modu</label>
+          <div style="display: flex; gap: 8px; margin-bottom: 1rem">
+            <button
+              class="filter-chip active"
+              id="modeBtn-single"
+              onclick="setShiftMode('single', this)"
+            >
+              Sadece bu post
+            </button>
+            <button
+              class="filter-chip"
+              id="modeBtn-cascade"
+              onclick="setShiftMode('cascade', this)"
+            >
+              Bu ve sonrası (zincir)
+            </button>
+          </div>
+          <div
+            id="modeDesc"
+            style="
+              font-size: 12px;
+              color: var(--text3);
+              margin-bottom: 1rem;
+              line-height: 1.5;
+            "
+          >
+            Yalnızca seçili postu taşır, diğerleri değişmez.
+          </div>
+        </div>
+
+        <div class="form-section">
+          <label class="form-label">Gün sayısı</label>
+          <div style="display: flex; align-items: center; gap: 10px">
+            <button class="btn btn-sm" onclick="shiftDays(-7)">-7</button>
+            <button class="btn btn-sm" onclick="shiftDays(-1)">-1</button>
+            <input
+              type="number"
+              class="form-input"
+              id="shiftAmount"
+              value="1"
+              style="width: 80px; text-align: center"
+            />
+            <button class="btn btn-sm" onclick="shiftDays(1)">+1</button>
+            <button class="btn btn-sm" onclick="shiftDays(7)">+7</button>
+          </div>
+        </div>
+
+        <div
+          id="shiftPreview"
+          style="
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 10px 12px;
+            font-size: 12px;
+            color: var(--text2);
+            margin-bottom: 1rem;
+            line-height: 1.6;
+          "
+        ></div>
+
+        <div style="display: flex; gap: 8px; justify-content: flex-end">
+          <button class="btn" onclick="closeModal('shiftModal')">İptal</button>
+          <button class="btn btn-primary" onclick="applyShift()">Uygula</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPORT MODAL -->
+    <div class="modal-overlay" id="exportModal">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">⬇ JSON Export</div>
+          <button
+            class="btn btn-icon btn-sm"
+            onclick="closeModal('exportModal')"
+          >
+            ✕
+          </button>
+        </div>
+        <div
+          style="display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap"
+        >
+          <button
+            class="filter-chip active"
+            id="expAll"
+            onclick="setExportFilter('all', this)"
+          >
+            Tüm postlar
+          </button>
+          <button
+            class="filter-chip"
+            id="expToday"
+            onclick="setExportFilter('today', this)"
+          >
+            Sadece bugün
+          </button>
+          <button
+            class="filter-chip"
+            id="expScheduled"
+            onclick="setExportFilter('scheduled', this)"
+          >
+            Planlanmış
+          </button>
+        </div>
+        <div id="jsonPreview" class="json-pre"></div>
+        <div
+          style="
+            display: flex;
+            gap: 8px;
+            margin-top: 1rem;
+            justify-content: flex-end;
+          "
+        >
+          <button class="btn" onclick="copyJSON()">Kopyala</button>
+          <button class="btn btn-primary" onclick="downloadJSON()">
+            ⬇ İndir
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORT MODAL -->
+    <div class="modal-overlay" id="importModal">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">⬆ JSON Import</div>
+          <button
+            class="btn btn-icon btn-sm"
+            onclick="closeModal('importModal')"
+          >
+            ✕
+          </button>
+        </div>
+        <label class="form-label">JSON yapıştırın</label>
+        <textarea
+          class="form-textarea"
+          id="importJson"
+          placeholder='[{"id":"...","content":"...","scheduledAt":"..."}]'
+          style="min-height: 180px; font-family: monospace; font-size: 12px"
+        ></textarea>
+        <div
+          style="
+            display: flex;
+            gap: 8px;
+            margin-top: 1rem;
+            justify-content: flex-end;
+          "
+        >
+          <button class="btn" onclick="closeModal('importModal')">İptal</button>
+          <button class="btn btn-primary" onclick="importJSON()">
+            Import Et
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+      // ===== STATE =====
+      let posts = [];
+      let selectedId = null;
+      let currentView = "form";
+      let currentFilter = "all";
+      let shiftMode = "single";
+      let exportFilter = "all";
+      let calYear = new Date().getFullYear();
+      let calMonth = new Date().getMonth();
+      let mediaStore = {};
+
+      // ===== FILE SYSTEM ACCESS API =====
+      let dirHandle = null;
+      let writeTimer = null;
+
+      // IndexedDB'ye handle kaydet
+      async function saveHandleToDB(handle) {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open("linkedin-scheduler", 1);
+          req.onupgradeneeded = (e) =>
+            e.target.result.createObjectStore("handles");
+          req.onsuccess = (e) => {
+            const tx = e.target.result.transaction("handles", "readwrite");
+            tx.objectStore("handles").put(handle, "dir");
+            tx.oncomplete = resolve;
+            tx.onerror = reject;
+          };
+          req.onerror = reject;
+        });
+      }
+
+      // IndexedDB'den handle oku
+      async function loadHandleFromDB() {
+        return new Promise((resolve) => {
+          const req = indexedDB.open("linkedin-scheduler", 1);
+          req.onupgradeneeded = (e) =>
+            e.target.result.createObjectStore("handles");
+          req.onsuccess = (e) => {
+            const tx = e.target.result.transaction("handles", "readonly");
+            const get = tx.objectStore("handles").get("dir");
+            get.onsuccess = () => resolve(get.result || null);
+            get.onerror = () => resolve(null);
+          };
+          req.onerror = () => resolve(null);
+        });
+      }
+
+      async function pickFolder() {
+        if (!("showDirectoryPicker" in window)) {
+          toast(
+            "Bu tarayıcı File System API desteklemiyor. Chrome veya Edge kullanın.",
+            "error",
+          );
+          return;
+        }
+        try {
+          dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+          await saveHandleToDB(dirHandle);
+          setSyncState("connected", "✓ " + dirHandle.name);
+          document.getElementById("folderBtn").textContent =
+            "📁 " + dirHandle.name;
+          toast("✓ Klasör bağlandı: " + dirHandle.name, "success");
+          await writeJSON();
+        } catch (e) {
+          if (e.name !== "AbortError")
+            toast("Klasör seçilemedi: " + e.message, "error");
+        }
+      }
+
+      // Sayfa açıldığında otomatik yeniden bağlan
+      async function tryRestoreFolder() {
+        const handle = await loadHandleFromDB();
+        if (!handle) return;
+
+        try {
+          // İzin durumunu kontrol et
+          const perm = await handle.queryPermission({ mode: "readwrite" });
+          if (perm === "granted") {
+            // İzin zaten var, direkt bağlan
+            dirHandle = handle;
+            setSyncState("connected", "✓ " + handle.name);
+            document.getElementById("folderBtn").textContent =
+              "📁 " + handle.name;
+            toast("✓ Klasör otomatik bağlandı: " + handle.name, "success");
+            await writeJSON();
+          } else {
+            // İzin yok, butona tıklama bekle
+            setSyncState("error", handle.name + " · İzin gerekli");
+            document.getElementById("folderBtn").textContent =
+              "📁 " + handle.name + " (İzin Ver)";
+            document.getElementById("folderBtn").onclick = async () => {
+              try {
+                const newPerm = await handle.requestPermission({
+                  mode: "readwrite",
+                });
+                if (newPerm === "granted") {
+                  dirHandle = handle;
+                  setSyncState("connected", "✓ " + handle.name);
+                  document.getElementById("folderBtn").textContent =
+                    "📁 " + handle.name;
+                  document.getElementById("folderBtn").onclick = pickFolder;
+                  toast("✓ Klasör bağlandı: " + handle.name, "success");
+                  await writeJSON();
+                }
+              } catch (e) {
+                toast("İzin alınamadı", "error");
+              }
+            };
+          }
+        } catch (e) {
+          setSyncState("error", "Klasör bulunamadı");
+        }
+      }
+
+      async function writeJSON() {
+        if (!dirHandle) return;
+        setSyncState("writing", "Yazılıyor...");
+        try {
+          const fileHandle = await dirHandle.getFileHandle("posts.json", {
+            create: true,
+          });
+          const writable = await fileHandle.createWritable();
+          const data = posts.map((p) => ({
+            ...p,
+            mediaRefs: p.mediaRefs
+              ? p.mediaRefs.map((r) => ({ name: r.name, type: r.type }))
+              : [],
+          }));
+          await writable.write(JSON.stringify(data, null, 2));
+          await writable.close();
+          setSyncState(
+            "connected",
+            "✓ " +
+              dirHandle.name +
+              " · " +
+              new Date().toLocaleTimeString("tr-TR", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              }),
+          );
+        } catch (e) {
+          setSyncState("error", "Yazma hatası");
+          toast("posts.json yazılamadı: " + e.message, "error");
+        }
+      }
+
+      function scheduleWrite() {
+        if (!dirHandle) return;
+        clearTimeout(writeTimer);
+        writeTimer = setTimeout(() => writeJSON(), 600);
+      }
+
+      function setSyncState(state, label) {
+        const el = document.getElementById("syncIndicator");
+        el.className = "sync-indicator " + state;
+        document.getElementById("syncLabel").textContent = label;
+      }
+
+      // ===== INIT =====
+      function init() {
+        const saved = localStorage.getItem("linkedin_posts");
+        if (saved) {
+          posts = JSON.parse(saved);
+          migratePosts();
+        }
+        const savedDir = localStorage.getItem("linkedin_dir_name");
+        if (savedDir) {
+          setSyncState("error", savedDir + " · Yeniden bağlanın");
+          document.getElementById("folderBtn").textContent = "📁 Yeniden Bağla";
+        }
+        updateAll();
+        tryRestoreFolder();
+      }
+
+      function migratePosts() {
+        posts.forEach((p) => {
+          if (!p.id) p.id = uid();
+          if (!p.status) p.status = "scheduled";
+          if (!p.tags) p.tags = [];
+          if (!p.notes) p.notes = "";
+          if (!p.mediaRefs) p.mediaRefs = [];
+        });
+      }
+
+      function uid() {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      }
+
+      function save() {
+        posts.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+        localStorage.setItem("linkedin_posts", JSON.stringify(posts));
+        scheduleWrite();
+        updateAll();
+      }
+
+      function updateAll() {
+        renderList();
+        updateTodayBadge();
+        if (currentView === "calendar") renderCalendar();
+        if (currentView === "stats") renderStats();
+      }
+
+      // ===== BADGE =====
+      function updateTodayBadge() {
+        const today = todayStr();
+        const cnt = posts.filter(
+          (p) =>
+            p.scheduledAt &&
+            p.scheduledAt.startsWith(today) &&
+            p.status === "scheduled",
+        ).length;
+        document.getElementById("todayBadge").textContent = cnt + " post bugün";
+      }
+
+      // ===== LIST =====
+      function renderList() {
+        const filtered = filterPosts(currentFilter);
+        document.getElementById("postCount").textContent = filtered.length;
+        const el = document.getElementById("postList");
+        if (!filtered.length) {
+          el.innerHTML =
+            '<div style="text-align:center; padding:2rem; color:var(--text3); font-size:13px;">Post bulunamadı</div>';
+          return;
+        }
+        el.innerHTML = filtered
+          .map((p) => {
+            const date = p.scheduledAt
+              ? formatDate(p.scheduledAt)
+              : "Tarih yok";
+            const st = getStatus(p);
+            return `<div class="post-item${p.id === selectedId ? " active" : ""}" 
+      onclick="selectPost('${p.id}')"
+      draggable="true"
+      ondragstart="dragStart(event,'${p.id}')"
+      ondragover="dragOver(event)"
+      ondrop="dragDrop(event,'${p.id}')"
+      ondragleave="dragLeave(event)"
+      id="pi-${p.id}">
+      <div class="post-item-date">
+        <span class="post-item-status ${st.cls}"></span>
+        ${date} · ${st.label}
+        ${p.mediaRefs && p.mediaRefs.length ? ` · 🖼 ${p.mediaRefs.length}` : ""}
+      </div>
+      <div class="post-item-text">${p.content || '<em style="color:var(--text3)">İçerik yok</em>'}</div>
+    </div>`;
+          })
+          .join("");
+      }
+
+      function filterPosts(f) {
+        const today = todayStr();
+        const tomorrow = addDays(today, 1);
+
+        let data = [...posts];
+
+        // Durum filtresi
+        if (f === "scheduled")
+          data = data.filter((p) => p.status === "scheduled");
+        else if (f === "draft") data = data.filter((p) => p.status === "draft");
+        else if (f === "published")
+          data = data.filter((p) => p.status === "published");
+
+        // Tarih filtresi
+        if (activeDateFilter === "today") {
+          data = data.filter(
+            (p) => p.scheduledAt && p.scheduledAt.startsWith(today),
+          );
+        } else if (activeDateFilter === "tomorrow") {
+          data = data.filter(
+            (p) => p.scheduledAt && p.scheduledAt.startsWith(tomorrow),
+          );
+        } else if (activeDateFilter === "range") {
+          const from = document.getElementById("filterDateFrom").value;
+          const to = document.getElementById("filterDateTo").value;
+          if (from)
+            data = data.filter(
+              (p) => p.scheduledAt && p.scheduledAt.split("T")[0] >= from,
+            );
+          if (to)
+            data = data.filter(
+              (p) => p.scheduledAt && p.scheduledAt.split("T")[0] <= to,
+            );
+        }
+
+        return data;
+      }
+
+      function setFilter(f, btn) {
+        currentFilter = f;
+        document
+          .querySelectorAll(".sidebar .filter-chip")
+          .forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        renderList();
+      }
+
+      let activeDateFilter = null; // 'today' | 'tomorrow' | 'range' | null
+
+      function setDateFilter(type, btn) {
+        // Aynı butona tekrar basılırsa temizle
+        if (activeDateFilter === type) {
+          activeDateFilter = null;
+          document
+            .querySelectorAll(".sidebar .filter-chip")
+            .forEach((b) => b.classList.remove("active"));
+          // Durum filtresinde 'Tümü' tekrar aktif
+          document
+            .querySelector(".sidebar .filter-chip")
+            .classList.add("active");
+          document.getElementById("dateRangeBox").style.display = "none";
+          renderList();
+          return;
+        }
+
+        activeDateFilter = type;
+        document
+          .querySelectorAll(".sidebar .filter-chip")
+          .forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+
+        const box = document.getElementById("dateRangeBox");
+        if (type === "range") {
+          box.style.display = "flex";
+        } else {
+          box.style.display = "none";
+          renderList();
+        }
+      }
+
+      function applyDateRange() {
+        renderList();
+      }
+
+      // ===== STATUS =====
+      function getStatus(p) {
+        if (p.status === "draft")
+          return { cls: "status-draft", label: "Taslak" };
+        if (p.status === "published")
+          return { cls: "status-published", label: "Paylaşıldı" };
+        const today = todayStr();
+        if (!p.scheduledAt) return { cls: "status-draft", label: "Tarifsiz" };
+        const d = p.scheduledAt.split("T")[0];
+        if (d < today) return { cls: "status-overdue", label: "Geçti" };
+        if (d === today) return { cls: "status-today", label: "Bugün" };
+        return { cls: "status-scheduled", label: "Planlanmış" };
+      }
+
+      // ===== SELECT / EDIT =====
+      function selectPost(id) {
+        selectedId = id;
+        const p = posts.find((x) => x.id === id);
+        if (!p) return;
+        document.getElementById("emptyState").classList.add("hidden");
+        document.getElementById("postEditor").classList.remove("hidden");
+        document.getElementById("editorTitle").textContent = "Post Düzenle";
+        document.getElementById("fId").value = p.id;
+        document.getElementById("fContent").value = p.content || "";
+        document.getElementById("fTags").value = (p.tags || []).join(", ");
+        document.getElementById("fNotes").value = p.notes || "";
+        if (p.scheduledAt) {
+          document.getElementById("fDate").value = p.scheduledAt.split("T")[0];
+          document.getElementById("fTime").value = p.scheduledAt.split("T")[1]
+            ? p.scheduledAt.split("T")[1].slice(0, 5)
+            : "09:00";
+        } else {
+          document.getElementById("fDate").value = "";
+          document.getElementById("fTime").value = "09:00";
+        }
+        updateCharCount();
+        renderMediaGrid(p.mediaRefs || []);
+        document.getElementById("toolbarActions").classList.remove("hidden");
+        document.getElementById("selectionInfo").textContent = "";
+        renderList();
+      }
+
+      function openNewPost() {
+        selectedId = null;
+        document.getElementById("emptyState").classList.add("hidden");
+        document.getElementById("postEditor").classList.remove("hidden");
+        document.getElementById("editorTitle").textContent = "Yeni Post";
+        document.getElementById("fId").value = "";
+        document.getElementById("fContent").value = "";
+        document.getElementById("fTags").value = "";
+        document.getElementById("fNotes").value = "";
+        //document.getElementById('fDate').value = '';
+        //document.getElementById('fTime').value = '09:00';
+        document.getElementById("charCount").textContent = "0 / 3000";
+        document.getElementById("charCount").className = "char-count";
+        renderMediaGrid([]);
+        document.getElementById("toolbarActions").classList.add("hidden");
+        setView("form");
+        renderList();
+      }
+
+      function savePost(scheduled = false) {
+        const id = document.getElementById("fId").value || uid();
+        const content = document.getElementById("fContent").value.trim();
+        const date = document.getElementById("fDate").value;
+        const time = document.getElementById("fTime").value || "09:00";
+        const tags = document
+          .getElementById("fTags")
+          .value.split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        const notes = document.getElementById("fNotes").value;
+        const scheduledAt = date ? `${date}T${time}` : null;
+
+        const existing = posts.find((p) => p.id === id);
+        const mediaRefs = existing
+          ? existing.mediaRefs || []
+          : mediaStore[id] || [];
+
+        const post = {
+          id,
+          content,
+          scheduledAt,
+          status: scheduled ? "scheduled" : "draft",
+          tags,
+          notes,
+          mediaRefs,
+          updatedAt: new Date().toISOString(),
+        };
+
+        if (existing) {
+          Object.assign(existing, post);
+        } else {
+          post.createdAt = new Date().toISOString();
+          posts.push(post);
+        }
+
+        document.getElementById("fId").value = id;
+        selectedId = id;
+        save();
+        toast(
+          scheduled ? "✓ Post planlandı" : "✓ Taslak kaydedildi",
+          "success",
+        );
+        document.getElementById("toolbarActions").classList.remove("hidden");
+        openNewPost();
+      }
+
+      function deletePost() {
+        if (!selectedId) return;
+        if (!confirm("Bu postu silmek istediğinizden emin misiniz?")) return;
+        posts = posts.filter((p) => p.id !== selectedId);
+        selectedId = null;
+        save();
+        document.getElementById("emptyState").classList.remove("hidden");
+        document.getElementById("postEditor").classList.add("hidden");
+        document.getElementById("toolbarActions").classList.add("hidden");
+        toast("Post silindi");
+      }
+
+      function duplicatePost() {
+        const p = posts.find((x) => x.id === selectedId);
+        if (!p) return;
+        const np = {
+          ...p,
+          id: uid(),
+          content: p.content,
+          status: "draft",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        posts.push(np);
+        save();
+        selectPost(np.id);
+        toast("Post kopyalandı");
+      }
+
+      function markPublished() {
+        if (!selectedId) return;
+        const p = posts.find((x) => x.id === selectedId);
+        if (!p) return;
+        if (p.status === "published") {
+          toast("Bu post zaten paylaşıldı olarak işaretli");
+          return;
+        }
+        p.status = "published";
+        p.publishedAt = new Date().toISOString();
+        p.updatedAt = new Date().toISOString();
+        save();
+        selectPost(selectedId);
+        toast("✓ Paylaşıldı olarak işaretlendi", "success");
+      }
+
+      // ===== SHIFT =====
+      function openShiftModal() {
+        if (!selectedId) return;
+        updateShiftPreview();
+        document.getElementById("shiftModal").classList.add("open");
+      }
+
+      function setShiftMode(mode, btn) {
+        shiftMode = mode;
+        document
+          .querySelectorAll('[id^="modeBtn-"]')
+          .forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        const desc = document.getElementById("modeDesc");
+        desc.textContent =
+          mode === "cascade"
+            ? "Bu postu ve tarih sırasına göre sonraki tüm postları aynı gün kaydırır (zincir etkisi)."
+            : "Yalnızca seçili postu taşır, diğerleri değişmez.";
+        updateShiftPreview();
+      }
+
+      function shiftDays(n) {
+        const inp = document.getElementById("shiftAmount");
+        inp.value = parseInt(inp.value || 0) + n;
+        updateShiftPreview();
+      }
+
+      function updateShiftPreview() {
+        const p = posts.find((x) => x.id === selectedId);
+        if (!p || !p.scheduledAt) {
+          document.getElementById("shiftPreview").textContent =
+            "Bu postun tarihi yok.";
+          return;
+        }
+        const days =
+          parseInt(document.getElementById("shiftAmount").value) || 0;
+        const dir = days >= 0 ? "+" + days : String(days);
+        const newDate = addDays(p.scheduledAt.split("T")[0], days);
+        let affected = 1;
+        if (shiftMode === "cascade") {
+          affected = posts.filter(
+            (x) =>
+              x.scheduledAt &&
+              x.scheduledAt >= p.scheduledAt &&
+              x.status === "scheduled",
+          ).length;
+        }
+        document.getElementById("shiftPreview").innerHTML =
+          `<b>${p.content ? p.content.slice(0, 50) + "..." : "Bu post"}</b><br>
+    ${formatDate(p.scheduledAt)} → <b>${formatDate(newDate + "T" + (p.scheduledAt.split("T")[1] || "09:00"))}</b><br>
+    ${shiftMode === "cascade" ? `<span style="color:var(--accent2)">Etkilenen post sayısı: ${affected}</span>` : "Sadece bu post kaydırılacak"}`;
+      }
+
+      function applyShift() {
+        const p = posts.find((x) => x.id === selectedId);
+        if (!p || !p.scheduledAt) return;
+        const days =
+          parseInt(document.getElementById("shiftAmount").value) || 0;
+        if (shiftMode === "cascade") {
+          posts
+            .filter(
+              (x) =>
+                x.scheduledAt &&
+                x.scheduledAt >= p.scheduledAt &&
+                x.status === "scheduled",
+            )
+            .forEach((x) => {
+              const d = x.scheduledAt.split("T");
+              x.scheduledAt = addDays(d[0], days) + "T" + (d[1] || "09:00");
+            });
+        } else {
+          const d = p.scheduledAt.split("T");
+          p.scheduledAt = addDays(d[0], days) + "T" + (d[1] || "09:00");
+        }
+        save();
+        selectPost(selectedId);
+        closeModal("shiftModal");
+        toast(`✓ ${days >= 0 ? "+" : ""}${days} gün kaydırıldı`, "success");
+      }
+
+      // ===== MEDIA =====
+      function handleFiles(files) {
+        const id = document.getElementById("fId").value || "new";
+        if (!mediaStore[id]) mediaStore[id] = [];
+        Array.from(files).forEach((file) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const ref = {
+              name: file.name,
+              type: file.type.startsWith("video") ? "video" : "image",
+              data: e.target.result,
+            };
+            const p = posts.find((x) => x.id === id);
+            if (p) {
+              if (!p.mediaRefs) p.mediaRefs = [];
+              p.mediaRefs.push(ref);
+              renderMediaGrid(p.mediaRefs);
+              save();
+            } else {
+              mediaStore[id].push(ref);
+              renderMediaGrid(mediaStore[id]);
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function renderMediaGrid(refs) {
+        const grid = document.getElementById("mediaGrid");
+        if (!refs || !refs.length) {
+          grid.innerHTML = "";
+          return;
+        }
+        grid.innerHTML = refs
+          .map(
+            (r, i) => `
+    <div class="media-thumb">
+      ${
+        r.type === "video"
+          ? `<video src="${r.data}" muted></video><div class="media-thumb-type">vid</div>`
+          : `<img src="${r.data}" alt="">`
+      }
+      <button class="media-thumb-remove" onclick="removeMedia(${i})">✕</button>
+    </div>`,
+          )
+          .join("");
+      }
+
+      function removeMedia(idx) {
+        const id = document.getElementById("fId").value;
+        const p = posts.find((x) => x.id === id);
+        if (p && p.mediaRefs) {
+          p.mediaRefs.splice(idx, 1);
+          renderMediaGrid(p.mediaRefs);
+          save();
+        }
+      }
+
+      function handleDragOver(e) {
+        e.preventDefault();
+        e.currentTarget.classList.add("drag-over");
+      }
+      function handleDragLeave(e) {
+        e.currentTarget.classList.remove("drag-over");
+      }
+      function handleDrop(e) {
+        e.preventDefault();
+        e.currentTarget.classList.remove("drag-over");
+        handleFiles(e.dataTransfer.files);
+      }
+
+      // ===== DRAG REORDER =====
+      let dragId = null;
+      function dragStart(e, id) {
+        dragId = id;
+        e.dataTransfer.effectAllowed = "move";
+      }
+      function dragOver(e) {
+        e.preventDefault();
+        e.currentTarget.classList.add("drag-target");
+      }
+      function dragLeave(e) {
+        e.currentTarget.classList.remove("drag-target");
+      }
+      function dragDrop(e, targetId) {
+        e.currentTarget.classList.remove("drag-target");
+        if (dragId === targetId) return;
+        const from = posts.findIndex((p) => p.id === dragId);
+        const to = posts.findIndex((p) => p.id === targetId);
+        if (from === -1 || to === -1) return;
+        posts.splice(to, 0, posts.splice(from, 1)[0]);
+        save();
+      }
+
+      // ===== CHAR COUNT =====
+      function updateCharCount() {
+        const len = document.getElementById("fContent").value.length;
+        const el = document.getElementById("charCount");
+        el.textContent = `${len} / 3000`;
+        el.className =
+          "char-count" + (len > 3000 ? " over" : len > 2500 ? " warn" : "");
+      }
+
+      // ===== VIEW =====
+      function setView(v, btn) {
+        currentView = v;
+        document
+          .querySelectorAll(".view-tab")
+          .forEach((b) => b.classList.remove("active"));
+        if (btn) btn.classList.add("active");
+        else
+          document
+            .querySelectorAll(".view-tab")
+            [["form", "calendar", "stats"].indexOf(v)].classList.add("active");
+        document
+          .getElementById("viewForm")
+          .classList.toggle("hidden", v !== "form");
+        document
+          .getElementById("viewCalendar")
+          .classList.toggle("hidden", v !== "calendar");
+        document
+          .getElementById("viewStats")
+          .classList.toggle("hidden", v !== "stats");
+        if (v === "calendar") renderCalendar();
+        if (v === "stats") renderStats();
+      }
+
+      // ===== CALENDAR =====
+      let calDragId = null;
+
+      function renderCalendar() {
+        const title = new Date(calYear, calMonth).toLocaleDateString("tr-TR", {
+          month: "long",
+          year: "numeric",
+        });
+        document.getElementById("calTitle").textContent = title;
+        const today = todayStr();
+        const firstDay = new Date(calYear, calMonth, 1);
+        const lastDay = new Date(calYear, calMonth + 1, 0);
+        let startDow = firstDay.getDay();
+        if (startDow === 0) startDow = 7;
+        const days = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+        let html = days
+          .map((d) => `<div class="cal-day-header">${d}</div>`)
+          .join("");
+        for (let i = 1; i < startDow; i++) {
+          const d = new Date(calYear, calMonth, 1 - startDow + i);
+          html += `<div class="cal-day other-month"><div class="cal-day-num">${d.getDate()}</div></div>`;
+        }
+        for (let d = 1; d <= lastDay.getDate(); d++) {
+          const ds = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          const dayPosts = posts.filter(
+            (p) => p.scheduledAt && p.scheduledAt.startsWith(ds),
+          );
+          const isToday = ds === today;
+          html += `<div class="cal-day${isToday ? " today" : ""}"
+      data-date="${ds}"
+      ondragover="calDragOver(event)"
+      ondragleave="calDragLeave(event)"
+      ondrop="calDrop(event, '${ds}')">
+      <div class="cal-day-num">${d}</div>
+      ${dayPosts
+        .map((p) => {
+          const st = getStatus(p);
+          const cls =
+            st.cls === "status-today"
+              ? "today-dot"
+              : st.cls === "status-overdue"
+                ? "overdue-dot"
+                : "";
+          const time = (p.scheduledAt.split("T")[1] || "").slice(0, 5);
+          const preview = p.content
+            ? p.content.slice(0, 18) + (p.content.length > 18 ? "…" : "")
+            : "";
+          return `<div class="cal-dot ${cls}"
+          draggable="true"
+          ondragstart="calDragStart(event, '${p.id}')"
+          ondragend="calDragEnd(event)"
+          onclick="selectPost('${p.id}'); setView('form')"
+          title="${p.content ? p.content.slice(0, 80).replace(/"/g, "&quot;") : ""}">
+          ${time ? `<span style="opacity:0.6;font-size:9px">${time}</span> ` : ""}${preview}
+        </div>`;
+        })
+        .join("")}
+    </div>`;
+        }
+        const remaining = (7 - ((startDow - 1 + lastDay.getDate()) % 7)) % 7;
+        for (let i = 1; i <= remaining; i++) {
+          html += `<div class="cal-day other-month"><div class="cal-day-num">${i}</div></div>`;
+        }
+        document.getElementById("calGrid").innerHTML = html;
+      }
+
+      function calDragStart(e, id) {
+        calDragId = id;
+        e.dataTransfer.effectAllowed = "move";
+        e.stopPropagation();
+        setTimeout(() => (e.target.style.opacity = "0.4"), 0);
+      }
+
+      function calDragEnd(e) {
+        e.target.style.opacity = "";
+        document
+          .querySelectorAll(".cal-day.cal-drop-target")
+          .forEach((el) => el.classList.remove("cal-drop-target"));
+      }
+
+      function calDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        const day = e.currentTarget;
+        if (!day.classList.contains("other-month")) {
+          day.classList.add("cal-drop-target");
+        }
+      }
+
+      function calDragLeave(e) {
+        e.currentTarget.classList.remove("cal-drop-target");
+      }
+
+      function calDrop(e, dateStr) {
+        e.preventDefault();
+        e.currentTarget.classList.remove("cal-drop-target");
+        if (!calDragId) return;
+        const p = posts.find((x) => x.id === calDragId);
+        if (!p) return;
+        const time = p.scheduledAt
+          ? p.scheduledAt.split("T")[1] || "09:00"
+          : "09:00";
+        const newDate = dateStr + "T" + time;
+        if (p.scheduledAt === newDate) return;
+        p.scheduledAt = newDate;
+        p.status = "scheduled";
+        calDragId = null;
+        save();
+        toast("✓ Post taşındı → " + formatDate(newDate), "success");
+        renderCalendar();
+      }
+
+      function prevMonth() {
+        calMonth--;
+        if (calMonth < 0) {
+          calMonth = 11;
+          calYear--;
+        }
+        renderCalendar();
+      }
+      function nextMonth() {
+        calMonth++;
+        if (calMonth > 11) {
+          calMonth = 0;
+          calYear++;
+        }
+        renderCalendar();
+      }
+      function goToday() {
+        calYear = new Date().getFullYear();
+        calMonth = new Date().getMonth();
+        renderCalendar();
+      }
+
+      // ===== STATS =====
+      function renderStats() {
+        const today = todayStr();
+        const scheduled = posts.filter(
+          (p) =>
+            p.status === "scheduled" &&
+            p.scheduledAt &&
+            p.scheduledAt.split("T")[0] >= today,
+        ).length;
+        const todayCount = posts.filter(
+          (p) => p.scheduledAt && p.scheduledAt.startsWith(today),
+        ).length;
+        const drafts = posts.filter((p) => p.status === "draft").length;
+        const published = posts.filter((p) => p.status === "published").length;
+        const overdue = posts.filter(
+          (p) =>
+            p.status === "scheduled" &&
+            p.scheduledAt &&
+            p.scheduledAt.split("T")[0] < today,
+        ).length;
+        document.getElementById("statsRow").innerHTML = `
+    <div class="stat-card"><div class="stat-num">${posts.length}</div><div class="stat-label">Toplam post</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${scheduled}</div><div class="stat-label">Planlanmış</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#63c922">${todayCount}</div><div class="stat-label">Bugün</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#9b59b6">${published}</div><div class="stat-label">Paylaşıldı</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:#e24b4a">${overdue}</div><div class="stat-label">Geçmiş</div></div>`;
+
+        const tagMap = {};
+        posts.forEach((p) =>
+          (p.tags || []).forEach((t) => {
+            tagMap[t] = (tagMap[t] || 0) + 1;
+          }),
+        );
+        document.getElementById("tagStats").innerHTML =
+          Object.entries(tagMap)
+            .sort((a, b) => b[1] - a[1])
+            .map(
+              ([t, c]) =>
+                `<span style="background:rgba(10,102,194,0.15); color:var(--accent2); border:1px solid rgba(55,138,221,0.25); border-radius:20px; padding:4px 12px; font-size:12px; font-weight:500">#${t} <b>${c}</b></span>`,
+            )
+            .join("") ||
+          '<span style="color:var(--text3); font-size:13px">Henüz etiket yok</span>';
+      }
+
+      // ===== EXPORT / IMPORT =====
+      function getExportData() {
+        const today = todayStr();
+        let data = [...posts];
+        if (exportFilter === "today")
+          data = data.filter(
+            (p) => p.scheduledAt && p.scheduledAt.startsWith(today),
+          );
+        if (exportFilter === "scheduled")
+          data = data.filter((p) => p.status === "scheduled");
+        return data.map((p) => ({
+          ...p,
+          mediaRefs: p.mediaRefs
+            ? p.mediaRefs.map((r) => ({ name: r.name, type: r.type }))
+            : [],
+        }));
+      }
+
+      function openExport() {
+        refreshExportPreview();
+        document.getElementById("exportModal").classList.add("open");
+      }
+
+      function refreshExportPreview() {
+        document.getElementById("jsonPreview").textContent = JSON.stringify(
+          getExportData(),
+          null,
+          2,
+        );
+      }
+
+      function setExportFilter(f, btn) {
+        exportFilter = f;
+        document
+          .querySelectorAll("#exportModal .filter-chip")
+          .forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        refreshExportPreview();
+      }
+
+      function downloadJSON() {
+        const data = getExportData();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: "application/json",
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "posts.json";
+        a.click();
+        toast("⬇ posts.json indirildi", "success");
+      }
+
+      function copyJSON() {
+        navigator.clipboard.writeText(JSON.stringify(getExportData(), null, 2));
+        toast("JSON kopyalandı");
+      }
+
+      function openImport() {
+        document.getElementById("importModal").classList.add("open");
+      }
+
+      function importJSON() {
+        try {
+          const data = JSON.parse(document.getElementById("importJson").value);
+          if (!Array.isArray(data)) throw new Error("Dizi olmalı");
+          data.forEach((p) => {
+            if (!p.id) p.id = uid();
+          });
+          const ids = new Set(posts.map((p) => p.id));
+          data.forEach((p) => {
+            if (ids.has(p.id)) {
+              Object.assign(
+                posts.find((x) => x.id === p.id),
+                p,
+              );
+            } else {
+              posts.push(p);
+            }
+          });
+          save();
+          closeModal("importModal");
+          toast(`✓ ${data.length} post import edildi`, "success");
+        } catch (e) {
+          toast("Geçersiz JSON: " + e.message, "error");
+        }
+      }
+
+      // ===== UTILS =====
+      function todayStr() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      }
+
+      function addDays(dateStr, n) {
+        const d = new Date(dateStr);
+        d.setDate(d.getDate() + n);
+        return d.toISOString().split("T")[0];
+      }
+
+      function formatDate(iso) {
+        if (!iso) return "—";
+        const d = new Date(iso.replace("T", " "));
+        return (
+          d.toLocaleDateString("tr-TR", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }) + (iso.includes("T") ? " " + iso.split("T")[1].slice(0, 5) : "")
+        );
+      }
+
+      function closeModal(id) {
+        document.getElementById(id).classList.remove("open");
+      }
+
+      function toast(msg, type = "") {
+        const c = document.getElementById("toastContainer");
+        const t = document.createElement("div");
+        t.className = "toast " + type;
+        t.textContent = msg;
+        c.appendChild(t);
+        setTimeout(() => t.remove(), 3000);
+      }
+
+      // ===== KEYBOARD =====
+      document.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+          e.preventDefault();
+          savePost(true);
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === "n") {
+          e.preventDefault();
+          openNewPost();
+        }
+      });
+
+      // ===== SHIFT INPUT CHANGE =====
+      document
+        .getElementById("shiftAmount")
+        .addEventListener("input", updateShiftPreview);
+
+      init();
+    </script>
+  </body>
+</html>
